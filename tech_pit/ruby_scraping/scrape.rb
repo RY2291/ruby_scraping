@@ -25,6 +25,7 @@ def scrape_section(section)
   }
 end
 
+
 html = File.read('pintnews.html')
 doc = Nokogiri::HTML.parse(html, nil, "utf-8")
 pintnews = doc.xpath("/html/body/main/section[position() > 1]").map { |section| scrape_section(section)}
