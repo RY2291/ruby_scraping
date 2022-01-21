@@ -1,68 +1,109 @@
 require "net/http"
 require "nokogiri"
 require "json"
-
 require "optparse"
 
-opt = OptionParser.new
-opt.on("--infile=VAL")
-opt.on("--outfile=VAL")
-opt.on("--category=VAL")
+class PreProcessor
+  def self.exec(argv)
+    # オプション解析
+    opt = OptionParser.new
+    opt.on("--infile=VAL")
+    opt.on("--outfile=VAL")
+    opt.on("--category=VAL")
 
-params = {}
-opt.parse!(ARGV, into: params)
+    params = {}
+    opt.parse!(ARGV, into: params)
 
-if params[:infile] && params[:category]
-  puts "Error: --infile と --category は同時に指定できません。"
-  exit(1)
+    if params[:infile] && params[:category]
+      puts "Error: --infile と --category は同時に指定できません。"
+      exit(1)
+    end
+
+    params
+  end
 end
 
-def get_from(url)
-  Net::HTTP.get(URI(url))
+params = PreProcessor.exec(ARGV)
+
+if params[:infile]
+  html = File.read(params[:infile])
 end
 
-def write_file(path, text)
-  File.open(path, "w") { |file| file.write(text) }
-end
 
-def scrape_news(news)
-  {
-    title: news.xpath("./p/strong/a").first.text,
-    url: news.xpath("./p/strong/a").first["href"]
-  }
-end
-
-def scrape_section(section)
-  {
-    category: section.xpath("./h6").first.text,
-    news: section.xpath("./div/div").map { |node| scrape_news(node) }
-  }
-end
-
-if params[:infle]
-  html = File.read(params[:infle])
-else
-  url = 'https://masayuki14.github.io/pit-news/'
-  if params[:category]
-    url = url + "?category=" + params[:category]
+# HTMLの読み込み
+class HtmlReader
+  def self.get_from(url)
+    Net::HTTP.get(URI(url))
   end
 
-  html = get_from(url)
+  def self.read(params)
+    if params[:infle]
+      html = File.read(params[:infle])
+    else
+      url = 'https://masayuki14.github.io/pit-news/'
+      if params[:category]
+        url = url + "?category=" + params[:category]
+      end
+      html = get_from(url)
+    end
+
+    html
+  end
 end
 
-html = File.read('pintnews.html')
-doc = Nokogiri::HTML.parse(html, nil, "utf-8")
-pintnews = doc
-  .xpath("/html/body/main/section[position() > 1]")
-  .map { |section| scrape_section(section)}
+html = HtmlReader.read(params)
 
-if params[:outfile]
-  outfile = params[:outfile]
-else
-  outfile = "pintnews.json"
+# 各要素をスクレイピングする
+class Scraper
+  def self.scrape_news(news)
+    {
+      title: news.xpath("./p/strong/a").first.text,
+      url: news.xpath("./p/strong/a").first["href"]
+    }
+  end
+
+  def self.scrape_section(section)
+    {
+      category: section.xpath("./h6").first.text,
+      news: section.xpath("./div/div").map { |node| scrape_news(node) }
+    }
+  end
+
+  def self.scrape(html)
+    doc = Nokogiri::HTML.parse(html, nil, "utf-8")
+    pintnews = doc.xpath("/html/body/main/section[position() > 1]").map { |section| scrape_section(section)}
+    pintnews
+  end
 end
 
-write_file(outfile, { pintnews: pintnews}.to_json)
+pintnews = Scraper.scrape(html)
+
+
+# ファイルへの書き出し
+class JsonWriter
+  def self.write(params, pintnews)
+    if params[:outfile]
+      outfile = params[:outfile]
+    else
+      outfile = "pintnews.json"
+    end
+    write_file(outfile, { pintnews: pintnews}.to_json)
+  end
+
+  def self.write_file(path, text)
+    File.open(path, "w") { |file| file.write(text) }
+  end
+end
+
+JsonWriter.write(params, pintnews)
+
+
+
+
+
+
+
+
 
 
 # # //はルートノード以下の全要素が対象になる
