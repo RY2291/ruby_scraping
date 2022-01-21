@@ -3,9 +3,10 @@ require "nokogiri"
 require "json"
 require "optparse"
 
+
+# オプション解析
 class PreProcessor
   def self.exec(argv)
-    # オプション解析
     opt = OptionParser.new
     opt.on("--infile=VAL")
     opt.on("--outfile=VAL")
@@ -14,10 +15,7 @@ class PreProcessor
     params = {}
     opt.parse!(ARGV, into: params)
 
-    if params[:infile] && params[:category]
-      puts "Error: --infile と --category は同時に指定できません。"
-      exit(1)
-    end
+    raise "Error: --infile と --category は同時に指定できません。" if params[:infile] && params[:category]
 
     params
   end
@@ -32,22 +30,23 @@ end
 
 # HTMLの読み込み
 class HtmlReader
-  def self.get_from(url)
+  def initialize(options)
+    @infile = options[:infile]
+    @category = options[:category]
+  end
+
+  def read_website
+    url = 'https://masayuki14.github.io/pit-news/'
+    url = url + "?category=" + @category if @category
     Net::HTTP.get(URI(url))
   end
 
-  def self.read(params)
-    if params[:infle]
-      html = File.read(params[:infle])
+  def read(params)
+    if @infile
+      File.read(@infile)
     else
-      url = 'https://masayuki14.github.io/pit-news/'
-      if params[:category]
-        url = url + "?category=" + params[:category]
-      end
-      html = get_from(url)
+      read_website
     end
-
-    html
   end
 end
 
